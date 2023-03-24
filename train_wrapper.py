@@ -1,11 +1,34 @@
 import argparse
 import os
 import sys
+from tqdm import tqdm
+import pandas as pd
 from train import get_train_test_files, train_and_test_model, write_results_file, combine_fold_results
 
 # Check if crossdocked files have been downloaded 
 
 # Create new types file by removing affinity data and readding chosen data 
+
+
+def rewrite_types_file(types_filename, csv_file):
+    allowed_pdbs = pd.read_csv(csv_file, header=None)['keys'].to_list()
+    with open(types_filename, 'r') as types_file:
+        lines = types_file.readlines()
+    for l in tqdm(len(lines)):
+        line = lines[l]
+        pose_label, affinity_label, rmsd, receptor_name, ligand_name, strain = line.split()
+        if affinity_label > 0:
+            pdb = ligand_name.split('/')[-1].split('_')[3]
+            if pdb not in allowed_pdbs:
+                lines[l] = f'{pose_label} 0 {rmsd} {receptor_name} {ligand_name} {strain}'
+    with open(f"temp_features/{csv_file.split('.csv')[0].split('/')[-1]}_{types_filename}", 'w') as g:
+        for l in lines:
+            g.write(l+'\n')
+    return None 
+    
+
+
+
 
 
 
@@ -14,6 +37,11 @@ from train import get_train_test_files, train_and_test_model, write_results_file
 if __name__ == '__main__':
     '''Return argument namespace and commandline'''
     parser = argparse.ArgumentParser(description='Train neural net on .types data.')
+    parser.add_argument('--csv_file', type=str, default='train.csv')
+    parser.add_argument('--val_csv_file', type=str, default='val.csv')
+    parser.add_argument('--data_dir', type=str, default='data')
+    parser.add_argument('--val_data_dir', type=str, default='data')
+    parser.add_argument('--model_name', type=str, default='test')
     parser.add_argument('-m','--model',type=str,required=True,help="Model template. Must use TRAINFILE and TESTFILE", default='default2018.model')
     parser.add_argument('-p','--prefix',type=str,required=True,help="Prefix for training/test files: <prefix>[train|test][num].types")
     parser.add_argument('-d','--data_root',type=str,required=False,help="Root folder for relative paths in train/test files",default='')
@@ -97,6 +125,9 @@ if __name__ == '__main__':
     for i in train_test_files:
         for key in sorted(train_test_files[i], key=len):
             print(str(i).rjust(3), key.rjust(14), train_test_files[i][key])
+        
+    for i in train_test_files:
+        rewrite_types_file(train_test_files[i]['train'], args.csv_file)
 
     outprefix = args.outprefix
     if outprefix == '':
@@ -150,96 +181,96 @@ if __name__ == '__main__':
         else:
             test, train = results
 
-        #write out the final predictions for test and train sets
-        if test.aucs:
-            write_results_file('%s.auc.finaltest' % outname, test.y_true, test.y_score, footer='AUC %f\n' % test.aucs[-1])
-            write_results_file('%s.auc.finaltrain' % outname, train.y_true, train.y_score, footer='AUC %f\n' % train.aucs[-1])
+        # #write out the final predictions for test and train sets
+        # if test.aucs:
+        #     write_results_file('%s.auc.finaltest' % outname, test.y_true, test.y_score, footer='AUC %f\n' % test.aucs[-1])
+        #     write_results_file('%s.auc.finaltrain' % outname, train.y_true, train.y_score, footer='AUC %f\n' % train.aucs[-1])
 
-        if test.rmsds:
-            write_results_file('%s.rmsd.finaltest' % outname, test.y_aff, test.y_predaff, footer='RMSD %f\n' % test.rmsds[-1])
-            write_results_file('%s.rmsd.finaltrain' % outname, train.y_aff, train.y_predaff, footer='RMSD %f\n' % train.rmsds[-1])
+        # if test.rmsds:
+        #     write_results_file('%s.rmsd.finaltest' % outname, test.y_aff, test.y_predaff, footer='RMSD %f\n' % test.rmsds[-1])
+        #     write_results_file('%s.rmsd.finaltrain' % outname, train.y_aff, train.y_predaff, footer='RMSD %f\n' % train.rmsds[-1])
 
-        if test.rmsd_rmses:
-            write_results_file('%s.rmsd_rmse.finaltest' % outname, test.rmsd_true, test.rmsd_pred, footer='RMSE %f\n' % test.rmsd_rmses[-1])
-            write_results_file('%s.rmsd_rmse.finaltrain' % outname, train.rmsd_true, train.rmsd_pred, footer='RMSE %f\n' % train.rmsd_rmses[-1])
+        # if test.rmsd_rmses:
+        #     write_results_file('%s.rmsd_rmse.finaltest' % outname, test.rmsd_true, test.rmsd_pred, footer='RMSE %f\n' % test.rmsd_rmses[-1])
+        #     write_results_file('%s.rmsd_rmse.finaltrain' % outname, train.rmsd_true, train.rmsd_pred, footer='RMSE %f\n' % train.rmsd_rmses[-1])
 
-        if args.prefix2:
-            if test2.aucs:
-                write_results_file('%s.auc.finaltest2' % outname, test2.y_true, test2.y_score, footer='AUC %f\n' % test2.aucs[-1])
-                write_results_file('%s.auc.finaltrain2' % outname, train2.y_true2, train2.y_score, footer='AUC %f\n' % train2.aucs[-1])
+        # if args.prefix2:
+        #     if test2.aucs:
+        #         write_results_file('%s.auc.finaltest2' % outname, test2.y_true, test2.y_score, footer='AUC %f\n' % test2.aucs[-1])
+        #         write_results_file('%s.auc.finaltrain2' % outname, train2.y_true2, train2.y_score, footer='AUC %f\n' % train2.aucs[-1])
 
-            if test2.rmsds:
-                write_results_file('%s.rmsd.finaltest2' % outname, test2.y_aff, test2.y_predaff, footer='RMSD %f\n' % test2.rmsds[-1])
-                write_results_file('%s.rmsd.finaltrain2' % outname, train2.y_aff, train2.y_predaff, footer='RMSD %f\n' % train2.rmsds[-1])
+        #     if test2.rmsds:
+        #         write_results_file('%s.rmsd.finaltest2' % outname, test2.y_aff, test2.y_predaff, footer='RMSD %f\n' % test2.rmsds[-1])
+        #         write_results_file('%s.rmsd.finaltrain2' % outname, train2.y_aff, train2.y_predaff, footer='RMSD %f\n' % train2.rmsds[-1])
 
         if i == 'all':
             continue
         numfolds += 1
 
         #aggregate results from different crossval folds
-        if test.aucs:
-            test_aucs.append(test.aucs)
-            train_aucs.append(train.aucs)
-            test_y_true.extend(test.y_true)
-            test_y_score.extend(test.y_score)
-            train_y_true.extend(train.y_true)
-            train_y_score.extend(train.y_score)
+        # if test.aucs:
+        #     test_aucs.append(test.aucs)
+        #     train_aucs.append(train.aucs)
+        #     test_y_true.extend(test.y_true)
+        #     test_y_score.extend(test.y_score)
+        #     train_y_true.extend(train.y_true)
+        #     train_y_score.extend(train.y_score)
 
-        if test.rmsds:
-            test_rmsds.append(test.rmsds)
-            train_rmsds.append(train.rmsds)
-            test_y_aff.extend(test.y_aff)
-            test_y_predaff.extend(test.y_predaff)
-            train_y_aff.extend(train.y_aff)
-            train_y_predaff.extend(train.y_predaff)
+        # if test.rmsds:
+        #     test_rmsds.append(test.rmsds)
+        #     train_rmsds.append(train.rmsds)
+        #     test_y_aff.extend(test.y_aff)
+        #     test_y_predaff.extend(test.y_predaff)
+        #     train_y_aff.extend(train.y_aff)
+        #     train_y_predaff.extend(train.y_predaff)
             
-        if test.rmsd_rmses:
-            test_rmsd_rmses.append(test.rmsd_rmses)
-            train_rmsd_rmses.append(train.rmsd_rmses)
-            test_rmsd_true.extend(test.rmsd_true)
-            test_rmsd_pred.extend(test.rmsd_pred)
-            train_rmsd_true.extend(train.rmsd_true)
-            train_rmsd_pred.extend(train.rmsd_pred)            
+        # if test.rmsd_rmses:
+        #     test_rmsd_rmses.append(test.rmsd_rmses)
+        #     train_rmsd_rmses.append(train.rmsd_rmses)
+        #     test_rmsd_true.extend(test.rmsd_true)
+        #     test_rmsd_pred.extend(test.rmsd_pred)
+        #     train_rmsd_true.extend(train.rmsd_true)
+        #     train_rmsd_pred.extend(train.rmsd_pred)            
 
-        if args.prefix2:
-            if test2.aucs:
-                test2_aucs.append(test2.aucs)
-                train2_aucs.append(train2.aucs)
-                test2_y_true.extend(test2.y_true)
-                test2_y_score.extend(test2.y_score)
-                train2_y_true.extend(train2.y_true)
-                train2_y_score.extend(train2.y_score)
+        # if args.prefix2:
+        #     if test2.aucs:
+        #         test2_aucs.append(test2.aucs)
+        #         train2_aucs.append(train2.aucs)
+        #         test2_y_true.extend(test2.y_true)
+        #         test2_y_score.extend(test2.y_score)
+        #         train2_y_true.extend(train2.y_true)
+        #         train2_y_score.extend(train2.y_score)
 
-            if test2.rmsds:
-                test2_rmsds.append(test2.rmsds)
-                train2_rmsds.append(train2.rmsds)
-                test2_y_aff.extend(test2.y_aff)
-                test2_y_predaff.extend(test2.y_predaff)
-                train2_y_aff.extend(train2.y_aff)
-                train2_y_predaff.extend(train2.y_predaff)
+        #     if test2.rmsds:
+        #         test2_rmsds.append(test2.rmsds)
+        #         train2_rmsds.append(train2.rmsds)
+        #         test2_y_aff.extend(test2.y_aff)
+        #         test2_y_predaff.extend(test2.y_predaff)
+        #         train2_y_aff.extend(train2.y_aff)
+        #         train2_y_predaff.extend(train2.y_predaff)
 
-    #only combine fold results if we have multiple folds
-    if numfolds > 1:
+    # #only combine fold results if we have multiple folds
+    # if numfolds > 1:
 
-        if any(test_aucs):
-            combine_fold_results(test_aucs, train_aucs, test_y_true, test_y_score, train_y_true, train_y_score,
-                                 outprefix, args.test_interval, 'pose', second_data_source=False)
+    #     if any(test_aucs):
+    #         combine_fold_results(test_aucs, train_aucs, test_y_true, test_y_score, train_y_true, train_y_score,
+    #                              outprefix, args.test_interval, 'pose', second_data_source=False)
 
-        if any(test_rmsds):
-            combine_fold_results(test_rmsds, train_rmsds, test_y_aff, test_y_predaff, train_y_aff, train_y_predaff,
-                                 outprefix, args.test_interval, 'affinity', second_data_source=False,
-                                 filter_actives_test=test_y_true, filter_actives_train=train_y_true)
+    #     if any(test_rmsds):
+    #         combine_fold_results(test_rmsds, train_rmsds, test_y_aff, test_y_predaff, train_y_aff, train_y_predaff,
+    #                              outprefix, args.test_interval, 'affinity', second_data_source=False,
+    #                              filter_actives_test=test_y_true, filter_actives_train=train_y_true)
 
-        if any(test_rmsd_rmses):
-            combine_fold_results(test_rmsd_rmses, train_rmsd_rmses, test_rmsd_true, test_rmsd_pred, train_rmsd_true, train_rmsd_pred,
-                                 outprefix, args.test_interval, 'rmsd', second_data_source=False)
+    #     if any(test_rmsd_rmses):
+    #         combine_fold_results(test_rmsd_rmses, train_rmsd_rmses, test_rmsd_true, test_rmsd_pred, train_rmsd_true, train_rmsd_pred,
+    #                              outprefix, args.test_interval, 'rmsd', second_data_source=False)
                                  
                                  
-        if any(test2_aucs):
-            combine_fold_results(test2_aucs, train2_aucs, test2_y_true, test2_y_score, train2_y_true, train2_y_score,
-                                 outprefix, args.test_interval, 'pose', second_data_source=True)
+    #     if any(test2_aucs):
+    #         combine_fold_results(test2_aucs, train2_aucs, test2_y_true, test2_y_score, train2_y_true, train2_y_score,
+    #                              outprefix, args.test_interval, 'pose', second_data_source=True)
 
-        if any(test2_rmsds):
-            combine_fold_results(test2_rmsds, train2_rmsds, test2_y_aff, test2_y_predaff, train2_y_aff, train2_y_predaff,
-                                 outprefix, args.test_interval, 'affinity', second_data_source=True,
-                                 filter_actives_test=test2_y_true, filter_actives_train=train2_y_true)
+    #     if any(test2_rmsds):
+    #         combine_fold_results(test2_rmsds, train2_rmsds, test2_y_aff, test2_y_predaff, train2_y_aff, train2_y_predaff,
+    #                              outprefix, args.test_interval, 'affinity', second_data_source=True,
+    #                              filter_actives_test=test2_y_true, filter_actives_train=train2_y_true)
